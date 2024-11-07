@@ -1,0 +1,165 @@
+---
+title: '111'
+author: "Dayu Tie"
+date: '2024-10-02'
+output: html_document
+---
+```{r}
+data_grouped=read.csv('Artery_20.csv')
+```
+
+```{r}
+artery_data <- read.csv("Artery_20.csv")
+
+artery_data$base_id <- sub("\\..*", "", artery_data$X)
+
+reorder_x_column <- function(df) {
+  base_id <- unique(df$base_id)[1] 
+  df$X <- paste0(base_id, ".", seq_len(nrow(df))) 
+  return(df)
+}
+
+artery_data <- do.call(rbind, lapply(split(artery_data, artery_data$base_id), reorder_x_column))
+
+artery_data$base_id <- NULL
+
+head(artery_data)
+
+
+
+```
+
+```{r}
+
+rownames(artery_data) <- NULL
+
+head(artery_data)
+
+```
+
+```{r}
+artery_data$Arteriosclerosis_group <- ifelse(artery_data$Arteriosclerosis_group == 0, "Arteriosclerosis=0", "Arteriosclerosis=1,2,3")
+artery_data
+```
+
+```{r}
+#write.csv(artery_data, file = "artery_cleaned.csv", row.names = FALSE)
+```
+
+
+```{r}
+#use RetardanceTotalMean as response value and fit mixed linear model
+
+library(lme4)
+model <- lmer(RetardanceTotalMean ~ Age + CircularStretch + AxialStretchRatio+CTE*CAA+NAIR
+*CAA+(1 | Patient_ID), data = artery_data)
+summary(model)
+
+AIC(model)
+```
+
+```{r}
+
+#install.packages("MCMCglmm")
+#library(MCMCglmm)
+
+
+#formula <- cbind(RetardanceMediaMean, RetardanceAdventitaMean, RetardanceTotalMean) ~ 
+           #Age + CircularStretch + AxialStretchRatio + CTE * CAA + NAIR * CAA
+
+
+#model <- MCMCglmm(
+#  formula, 
+ # random = ~ us(1 + Age):Patient_ID, 
+  #rcov = ~ idh(trait):units, 
+  #data = artery_data, 
+  #family = c("gaussian", "gaussian", "gaussian")
+#)
+
+
+#summary(model)
+
+
+```
+
+
+
+
+```{r}
+library(lme4)
+
+# use cte as response value and fit mixed logestic 
+model <- glmer(CTE ~ Age +RetardanceTotalMean + 
+               MediaToTotalRatio + RetardanceMediaMean + RetardanceAdventitaMean + 
+               (1 | Patient_ID), 
+               data = artery_data, 
+               family = binomial(link = "logit"))
+
+summary(model)
+AIC(model)
+```
+
+
+```{r}
+library(lme4)
+artery_data$Age <- scale(artery_data$Age)
+artery_data$RetardanceTotalMean <- scale(artery_data$RetardanceTotalMean)
+artery_data$MediaToTotalRatio <- scale(artery_data$MediaToTotalRatio)
+artery_data$RetardanceMediaMean <- scale(artery_data$RetardanceMediaMean)
+artery_data$RetardanceAdventitaMean <- scale(artery_data$RetardanceAdventitaMean)
+
+# use standard factors
+model <- glmer(CTE ~ Age + RetardanceTotalMean + 
+               MediaToTotalRatio + RetardanceMediaMean + RetardanceAdventitaMean + 
+               (1 | Patient_ID), 
+               data = artery_data, 
+               family = binomial(link = "logit"))
+
+
+summary(model)
+
+```
+
+```{r}
+
+#install.packages("optimx")
+library(optimx)
+library(lme4)
+
+# use BFGS Optimizer
+model <- glmer(CTE ~ Age + RetardanceTotalMean + 
+               MediaToTotalRatio + RetardanceMediaMean + RetardanceAdventitaMean + 
+               (1 | Patient_ID), 
+               data = artery_data, 
+               family = binomial(link = "logit"),
+               control = glmerControl(optimizer = "optimx", optCtrl = list(method = "BFGS")))
+
+summary(model)
+
+```
+
+
+
+
+
+```{r}
+complete_data=read.csv('ArteryProperties.csv')
+complete_data
+```
+
+```{r}
+library(ordinal)
+model <- clmm(factor(CTE) ~  Age + CircularStretch + AxialStretchRatio+RetardanceTotalMean+MediaToTotalRatio+RetardanceMediaMean+RetardanceAdventitaMean+(1 | Number), data = complete_data)
+summary(model)
+AIC(model)
+```
+
+```{r}
+library(ordinal)
+model <- clmm(factor(NAIR) ~  Age + CircularStretch + AxialStretchRatio+RetardanceTotalMean+MediaToTotalRatio+RetardanceMediaMean      +RetardanceAdventitaMean+(1 | Number), data = complete_data)
+summary(model)
+AIC(model)
+```
+
+
+
